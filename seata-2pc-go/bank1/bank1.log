@@ -1,0 +1,2 @@
+2022-05-06T10:29:23.016+0800	INFO	begin new global transaction [bank1Svc:9266753361100816]
+2022-05-06T10:29:23.235+0800	INFO	[bank1Svc:9266753361100816] rollback status: RolledBack
