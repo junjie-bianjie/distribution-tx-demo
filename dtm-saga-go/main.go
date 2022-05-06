@@ -1,8 +1,8 @@
 package main
 
 import (
-	"errors"
 	"fmt"
+	"github.com/dtm-labs/dtm-examples/dtmutil"
 	"github.com/dtm-labs/dtmcli"
 	"github.com/gin-gonic/gin"
 	"gorm.io/driver/mysql"
@@ -39,7 +39,10 @@ func qsAddRoute(app *gin.Engine) {
 	bank1Repo := Repo{NewMysqlDB("bank1")}
 	bank2Repo := Repo{NewMysqlDB("bank2")}
 
-	app.POST(BusiAPI+"/minus-zs-balances", func(c *gin.Context) {
+	// 注意 dtmutil.WrapHandler2 很重要，我一开始没有用这个包装函数，然后测试的时候发现无法回滚数据不一致，于是仔细想了难道我也要实现
+	// 幂等、空回滚、悬挂等操作么？可是我看官网明明说不用，于是找了一下发现有一个事务屏障的专题，具体原理没有细看，但是通过这个事务屏障的工具类就可以自动帮
+	// 我们就不用解决幂等、空回滚、悬挂。这样开发起来简单
+	app.POST(BusiAPI+"/minus-zs-balances", dtmutil.WrapHandler2(func(c *gin.Context) interface{} {
 		err := bank1Repo.UpdateBalances(AccountEvent{
 			AccountNo: 1,  // 1:zs
 			Amount:    -1, // -1 代表扣减金额
@@ -49,9 +52,10 @@ func qsAddRoute(app *gin.Engine) {
 		} else {
 			c.JSON(200, "")
 		}
-	})
+		return nil
+	}))
 
-	app.POST(BusiAPI+"/add-zs-balances", func(c *gin.Context) {
+	app.POST(BusiAPI+"/add-zs-balances", dtmutil.WrapHandler2(func(c *gin.Context) interface{} {
 		err := bank1Repo.UpdateBalances(AccountEvent{
 			AccountNo: 1, // 1:zs
 			Amount:    1,
@@ -61,14 +65,10 @@ func qsAddRoute(app *gin.Engine) {
 		} else {
 			c.JSON(200, "")
 		}
-	})
+		return nil
+	}))
 
-	app.POST(BusiAPI+"/add-ls-balances", func(c *gin.Context) {
-		if true {
-			c.JSON(409, errors.New("manually")) // Status 409 表示失败，不再重试，直接回滚，这个是框架定的
-			return
-		}
-
+	app.POST(BusiAPI+"/add-ls-balances", dtmutil.WrapHandler2(func(c *gin.Context) interface{} {
 		err := bank2Repo.UpdateBalances(AccountEvent{
 			AccountNo: 2, // 2:lisi
 			Amount:    1,
@@ -78,9 +78,11 @@ func qsAddRoute(app *gin.Engine) {
 		} else {
 			c.JSON(200, "")
 		}
-	})
 
-	app.POST(BusiAPI+"/minus-ls-balances", func(c *gin.Context) {
+		return nil
+	}))
+
+	app.POST(BusiAPI+"/minus-ls-balances", dtmutil.WrapHandler2(func(c *gin.Context) interface{} {
 		err := bank2Repo.UpdateBalances(AccountEvent{
 			AccountNo: 2, // 2:lisi
 			Amount:    -1,
@@ -90,7 +92,8 @@ func qsAddRoute(app *gin.Engine) {
 		} else {
 			c.JSON(200, "")
 		}
-	})
+		return nil
+	}))
 }
 
 const dtmServer = "http://localhost:36789/api/dtmsvr"

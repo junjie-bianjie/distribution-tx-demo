@@ -5,6 +5,7 @@ require (
 	github.com/opentrx/mysql/v2 v2.0.7
 	github.com/opentrx/seata-golang/v2 v2.0.7-rc3
 	gorm.io/gorm v1.21.8
+	github.com/dtm-labs/dtmcli v1.13.4
 )
 
 require (
@@ -45,4 +46,4 @@ require (
 	vimagination.zapto.org/byteio v0.0.0-20200222190125-d27cba0f0b10 // indirect
 )
 
-go 1.17
+go 1.15
