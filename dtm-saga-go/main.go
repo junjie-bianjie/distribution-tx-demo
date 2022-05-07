@@ -4,10 +4,12 @@ import (
 	"fmt"
 	"github.com/dtm-labs/dtm-examples/dtmutil"
 	"github.com/dtm-labs/dtmcli"
+	"github.com/dtm-labs/dtmcli/dtmimp"
 	"github.com/gin-gonic/gin"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 	"log"
+	"strings"
 
 	"time"
 )
@@ -39,9 +41,7 @@ func qsAddRoute(app *gin.Engine) {
 	bank1Repo := Repo{NewMysqlDB("bank1")}
 	bank2Repo := Repo{NewMysqlDB("bank2")}
 
-	// 注意 dtmutil.WrapHandler2 很重要，我一开始没有用这个包装函数，然后测试的时候发现无法回滚数据不一致，于是仔细想了难道我也要实现
-	// 幂等、空回滚、悬挂等操作么？可是我看官网明明说不用，于是找了一下发现有一个事务屏障的专题，具体原理没有细看，但是通过这个事务屏障的工具类就可以自动帮
-	// 我们就不用解决幂等、空回滚、悬挂。这样开发起来简单
+	//  dtmutil.WrapHandler2就是包装了一下 gin.Func 没什么差别
 	app.POST(BusiAPI+"/minus-zs-balances", dtmutil.WrapHandler2(func(c *gin.Context) interface{} {
 		err := bank1Repo.UpdateBalances(AccountEvent{
 			AccountNo: 1,  // 1:zs
@@ -96,6 +96,54 @@ func qsAddRoute(app *gin.Engine) {
 	}))
 }
 
+// 使用dtm提供的事务屏障
+//func qsAddRoute2(app *gin.Engine) {
+//	bank1DB := NewMysqlDB("bank1")
+//	bank2DB := NewMysqlDB("bank2")
+//	//  dtmutil.WrapHandler2就是包装了一下 gin.Func 没什么差别
+//	app.POST(BusiAPI+"/minus-zs-balances", dtmutil.WrapHandler2(func(c *gin.Context) interface{} {
+//		err := SagaAdjustBalance(bank1DB, 1, -1, "")
+//		if err != nil {
+//			c.JSON(500, err.Error())
+//		} else {
+//			c.JSON(200, "")
+//		}
+//		return nil
+//	}))
+//
+//	app.POST(BusiAPI+"/add-zs-balances", dtmutil.WrapHandler2(func(c *gin.Context) interface{} {
+//		err := SagaAdjustBalance(bank1DB, 1, 1, "")
+//		if err != nil {
+//			c.JSON(500, err.Error())
+//		} else {
+//			c.JSON(200, "")
+//		}
+//		return nil
+//	}))
+//
+//	app.POST(BusiAPI+"/add-ls-balances", dtmutil.WrapHandler2(func(c *gin.Context) interface{} {
+//		err := SagaAdjustBalance(bank2DB, 2, 1, "")
+//
+//		if err != nil {
+//			c.JSON(500, err.Error())
+//		} else {
+//			c.JSON(200, "")
+//		}
+//
+//		return nil
+//	}))
+//
+//	app.POST(BusiAPI+"/minus-ls-balances", dtmutil.WrapHandler2(func(c *gin.Context) interface{} {
+//		err := SagaAdjustBalance(bank2DB, 2, -1, "")
+//		if err != nil {
+//			c.JSON(500, err.Error())
+//		} else {
+//			c.JSON(200, "")
+//		}
+//		return nil
+//	}))
+//}
+
 const dtmServer = "http://localhost:36789/api/dtmsvr"
 
 // QsFireRequest quick start: fire request
@@ -131,4 +179,12 @@ func NewMysqlDB(database string) *gorm.DB {
 		panic("start mysql client err: %s" + err.Error())
 	}
 	return db
+}
+
+func SagaAdjustBalance(db dtmcli.DB, uno int, amount int, result string) error {
+	if strings.Contains(result, dtmcli.ResultFailure) {
+		return dtmcli.ErrFailure
+	}
+	_, err := dtmimp.DBExec(db, "update bank1.account_info set account_balance = account_balance + ? where account_no = ?", amount, uno)
+	return err
 }

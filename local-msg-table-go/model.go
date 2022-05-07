@@ -6,10 +6,10 @@ type User struct {
 }
 
 type MsgLog struct {
-	UUID     string `json:"uuid"`
-	UserId   int64  `json:"user_id"`
-	Integral int64  `json:"integral"`
-	Status   int64  `json:"status"` // -1 没做，1做了
+	UUID     string    `json:"uuid"`
+	UserId   int64     `json:"user_id"`
+	Integral int64     `json:"integral"`
+	Status   LogStatus `json:"status"` // -1 没做，1做了
 }
 
 type Integral struct {
